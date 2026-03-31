@@ -5,6 +5,10 @@ import { resolve } from 'path'
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
+
+  // GitHub Pages serve o site em /ganttRx/ — necessário para assets carregarem
+  base: mode === 'lib' ? '/' : (process.env.GITHUB_PAGES ? '/ganttRx/' : '/'),
+
   ...(mode === 'lib' && {
     build: {
       lib: {

@@ -3,7 +3,7 @@
 **A powerful, canvas-based Gantt chart library for React + TypeScript.**
 
 <p align="center">
-  <a href="https://YOUR_USERNAME.github.io/ganttRx" target="_blank">
+  <a href="https://lucassmaestri.github.io/ganttRx" target="_blank">
     <img src="https://img.shields.io/badge/▶%20Live%20Demo-Click%20to%20try-a855f7?style=for-the-badge&labelColor=0d0d18" alt="Live Demo" />
   </a>
   &nbsp;
@@ -16,7 +16,7 @@
   </a>
 </p>
 
-> Replace `YOUR_USERNAME` with your GitHub username after deploying the demo (e.g. via `pnpm build && gh-pages -d dist`).
+> Replace `lucassmaestri` with your GitHub username after deploying the demo (e.g. via `pnpm build && gh-pages -d dist`).
 
 GanttRx renders project schedules with resource histograms, critical path analysis, auto-scheduling, and a complete event system — all in a performant canvas-based engine that handles thousands of tasks without breaking a sweat.
 
@@ -466,7 +466,7 @@ Resource hours are spread across the task duration using a Beta distribution:
 Pull requests are welcome. For major changes open an issue first.
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/ganttRx.git
+git clone https://github.com/lucassmaestri/ganttRx.git
 cd ganttRx
 pnpm install
 pnpm dev          # start the demo app at localhost:5173
