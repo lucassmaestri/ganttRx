@@ -58,6 +58,8 @@ export interface GanttMarker {
   color: string;
 }
 
+export type TaskListColumn = 'start' | 'end' | 'duration' | 'progress' | 'location' | 'notes' | 'wbs';
+
 export interface GanttSettings {
   rowHeight: number;
   columnWidth: number;
@@ -72,6 +74,7 @@ export interface GanttSettings {
   theme: 'dark' | 'light';
   showGrid: boolean;
   showActualBars: boolean;
+  visibleColumns: TaskListColumn[];
 }
 
 export interface TaskLayout {

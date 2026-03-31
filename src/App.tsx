@@ -5,9 +5,9 @@ import { mockTasks, mockDependencies, mockResources, generate3kData } from './da
 import './index.css';
 
 function App() {
-  const setTasks       = useGanttStore(s => s.setTasks);
+  const setTasks        = useGanttStore(s => s.setTasks);
   const setDependencies = useGanttStore(s => s.setDependencies);
-  const setResources   = useGanttStore(s => s.setResources);
+  const setResources    = useGanttStore(s => s.setResources);
   const [mode, setMode] = useState<'demo' | '3k'>('demo');
 
   useEffect(() => {
@@ -21,21 +21,29 @@ function App() {
       setDependencies(dependencies);
       setResources(resources);
     }
-  }, [mode]);
+  }, [mode, setTasks, setDependencies, setResources]);
 
   return (
     <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      {/* Dataset toggle */}
+      {/* Demo control bar — sits in normal flow, never overlaps the side panel */}
       <div style={{
-        position: 'fixed', bottom: 12, right: 12, zIndex: 200,
-        display: 'flex', gap: 4,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '3px 10px',
+        background: '#0d0d18',
+        borderBottom: '1px solid rgba(168,85,247,0.2)',
+        flexShrink: 0,
       }}>
+        <span style={{ color: '#a855f7', fontSize: 11, fontWeight: 800, letterSpacing: 1, marginRight: 6 }}>
+          GanttRx
+        </span>
         <button
           className={`gantt-btn ${mode === 'demo' ? 'active' : ''}`}
           style={{ fontSize: 10 }}
           onClick={() => setMode('demo')}
         >
-          Demo (28)
+          Demo
         </button>
         <button
           className={`gantt-btn ${mode === '3k' ? 'active' : ''}`}
@@ -44,8 +52,16 @@ function App() {
         >
           Stress Test (3k)
         </button>
+        <div style={{ flex: 1 }} />
+        <span style={{ color: '#4a4a6a', fontSize: 10 }}>
+          {mode === 'demo' ? '39 items · 39 deps · 28 resources' : '3 000 tasks · ~2 600 deps'}
+        </span>
       </div>
-      <GanttChart />
+
+      {/* GanttChart fills remaining height */}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <GanttChart />
+      </div>
     </div>
   );
 }

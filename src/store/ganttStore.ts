@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: GanttSettings = {
   theme: 'dark',
   showGrid: true,
   showActualBars: true,
+  visibleColumns: ['start', 'duration', 'progress'],
 };
 
 interface GanttStore {
