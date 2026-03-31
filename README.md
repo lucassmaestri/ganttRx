@@ -2,6 +2,22 @@
 
 **A powerful, canvas-based Gantt chart library for React + TypeScript.**
 
+<p align="center">
+  <a href="https://YOUR_USERNAME.github.io/ganttRx" target="_blank">
+    <img src="https://img.shields.io/badge/▶%20Live%20Demo-Click%20to%20try-a855f7?style=for-the-badge&labelColor=0d0d18" alt="Live Demo" />
+  </a>
+  &nbsp;
+  <a href="https://stackblitz.com/edit/gantt-rx-demo" target="_blank">
+    <img src="https://img.shields.io/badge/Open%20in-StackBlitz-1269d3?style=for-the-badge&logo=stackblitz&logoColor=white" alt="Open in StackBlitz" />
+  </a>
+  &nbsp;
+  <a href="https://www.npmjs.com/package/gantt-rx" target="_blank">
+    <img src="https://img.shields.io/npm/v/gantt-rx?style=for-the-badge&color=22c55e" alt="npm version" />
+  </a>
+</p>
+
+> Replace `YOUR_USERNAME` with your GitHub username after deploying the demo (e.g. via `pnpm build && gh-pages -d dist`).
+
 GanttRx renders project schedules with resource histograms, critical path analysis, auto-scheduling, and a complete event system — all in a performant canvas-based engine that handles thousands of tasks without breaking a sweat.
 
 ---
