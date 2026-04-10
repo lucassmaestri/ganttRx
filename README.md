@@ -45,12 +45,18 @@ GanttRx renders project schedules with resource histograms, critical path analys
 
 ## Installation
 
+**Via NPM Registry:**
 ```bash
 npm install gantt-rx
 # or
 pnpm add gantt-rx
 # or
 yarn add gantt-rx
+```
+
+**Via GitHub Directly** (auto-builds on install):
+```bash
+npm install github:lucassmaestri/ganttRx
 ```
 
 Import the stylesheet (required):

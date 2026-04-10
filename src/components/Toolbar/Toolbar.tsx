@@ -59,7 +59,21 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onAddTask, onAddGroup, onAddMi
   };
 
   const handleFit = () => {
-    setSettings({ zoomFactor: 1 });
+    if (tasks.length === 0) { setSettings({ zoomFactor: 1 }); return; }
+    const el = document.querySelector('[data-timeline]') as HTMLElement;
+    if (!el) { setSettings({ zoomFactor: 1 }); return; }
+    const containerWidth = el.clientWidth;
+    const nonGroups = tasks.filter(t => t.type !== 'group');
+    const items = nonGroups.length > 0 ? nonGroups : tasks;
+    const minMs = Math.min(...items.map(t => t.plannedStart.getTime()));
+    const maxMs = Math.max(...items.map(t => t.plannedEnd.getTime()));
+    const spanDays = Math.max(1, Math.ceil((maxMs - minMs) / 86400000) + 1);
+    const padDays = Math.max(2, Math.floor(spanDays * 0.05));
+    const totalDays = spanDays + padDays * 2;
+    const newZoom = Math.max(0.03, Math.min(8, (containerWidth / totalDays) / settings.columnWidth));
+    const newColW = settings.columnWidth * newZoom;
+    el.dispatchEvent(new CustomEvent('fit-tasks', { detail: { minMs, newZoom, newColW, padDays } }));
+    setSettings({ zoomFactor: newZoom });
   };
 
   const handleScrollToday = () => {

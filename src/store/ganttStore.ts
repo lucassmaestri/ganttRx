@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { GanttTask, Dependency, ResourceAllocation, GanttSettings, GanttMarker } from '../types';
 import { autoSchedule, computeCriticalPath } from '../lib/scheduler';
-import { cascadeMove, recalcGroups, shiftResources, moveGroupWithChildren } from '../lib/ganttUtils';
+import { cascadeMove, recalcGroups, moveGroupWithChildren } from '../lib/ganttUtils';
 import { addDays, startOfDay, differenceInCalendarDays } from 'date-fns';
 
 const DEFAULT_SETTINGS: GanttSettings = {
@@ -81,38 +81,83 @@ export const useGanttStore = create<GanttStore>((set, get) => ({
   moveTask: (id, newStart) => set(s => {
     const task = s.tasks.find(t => t.id === id);
     if (!task) return s;
-    const deltaMs = startOfDay(newStart).getTime() - startOfDay(task.plannedStart).getTime();
+
     const newTasks = task.type === 'group'
       ? moveGroupWithChildren(s.tasks, id, newStart)
       : cascadeMove(s.tasks, s.dependencies, id, newStart);
-    // Shift resources for the group's children too
-    let newResources = s.resources;
-    if (task.type === 'group') {
-      newResources = s.resources.map(r => {
-        const child = newTasks.find(t => t.id === r.taskId && t.parentId === id);
-        if (!child) return r;
-        return { ...r, startDate: new Date(r.startDate.getTime() + deltaMs), endDate: new Date(r.endDate.getTime() + deltaMs) };
-      });
-    } else {
-      newResources = shiftResources(s.resources, id, deltaMs);
+
+    // Shift resources for EVERY task that changed position:
+    // includes the moved task, cascaded dependents, and all group descendants.
+    const oldMap = new Map(s.tasks.map(t => [t.id, t]));
+    const shifts = new Map<string, number>();
+    for (const t of newTasks) {
+      const old = oldMap.get(t.id);
+      if (!old) continue;
+      const delta = t.plannedStart.getTime() - old.plannedStart.getTime();
+      if (delta !== 0) shifts.set(t.id, delta);
     }
+    const newResources = s.resources.map(r => {
+      const delta = shifts.get(r.taskId);
+      if (delta === undefined) return r;
+      return { ...r, startDate: new Date(r.startDate.getTime() + delta), endDate: new Date(r.endDate.getTime() + delta) };
+    });
+
     return { tasks: newTasks, resources: newResources };
   }),
 
-  resizeTask: (id, edge, newDate) => set(s => ({
-    tasks: recalcGroups(s.tasks.map(t => {
-      if (t.id !== id) return t;
-      if (edge === 'start') {
-        const start = startOfDay(newDate);
-        if (start >= t.plannedEnd) return t;
-        return { ...t, plannedStart: start };
-      } else {
-        const end = startOfDay(newDate);
-        if (end <= t.plannedStart) return t;
-        return { ...t, plannedEnd: end };
-      }
-    })),
-  })),
+  resizeTask: (id, edge, newDate) => set(s => {
+    const task = s.tasks.find(t => t.id === id);
+    if (!task) return s;
+
+    const oldStart = task.plannedStart.getTime();
+    const oldEnd   = task.plannedEnd.getTime();
+    const oldDur   = Math.max(oldEnd - oldStart, 1);
+
+    let newTask: GanttTask;
+    if (edge === 'start') {
+      const start = startOfDay(newDate);
+      if (start >= task.plannedEnd) return s;
+      newTask = { ...task, plannedStart: start };
+    } else {
+      const end = startOfDay(newDate);
+      if (end <= task.plannedStart) return s;
+      newTask = { ...task, plannedEnd: end };
+    }
+
+    const newTaskStart = newTask.plannedStart.getTime();
+    const newTaskEnd   = newTask.plannedEnd.getTime();
+    const newDur       = Math.max(newTaskEnd - newTaskStart, 1);
+
+    // Scale resources proportionally within the new task bounds
+    const newResources = s.resources.map(r => {
+      if (r.taskId !== id) return r;
+      const relStart = (r.startDate.getTime() - oldStart) / oldDur;
+      const relEnd   = (r.endDate.getTime()   - oldStart) / oldDur;
+      return {
+        ...r,
+        startDate: new Date(newTaskStart + relStart * newDur),
+        endDate:   new Date(newTaskStart + relEnd   * newDur),
+      };
+    });
+
+    // Cascade: propagate new task end to FS/FF/SF dependents
+    const tasksAfterResize = recalcGroups(s.tasks.map(t => t.id === id ? newTask : t));
+    const tasksAfterCascade = cascadeMove(tasksAfterResize, s.dependencies, id, newTask.plannedStart);
+
+    // Shift resources for any tasks that cascadeMove pushed forward
+    const oldMap = new Map(s.tasks.map(t => [t.id, t]));
+    const finalResources = newResources.map(r => {
+      if (r.taskId === id) return r; // already handled proportionally above
+      const newT = tasksAfterCascade.find(t => t.id === r.taskId);
+      const oldT = oldMap.get(r.taskId);
+      if (!newT || !oldT) return r;
+      const delta = newT.plannedStart.getTime() - oldT.plannedStart.getTime();
+      if (delta === 0) return r;
+      return { ...r, startDate: new Date(r.startDate.getTime() + delta), endDate: new Date(r.endDate.getTime() + delta) };
+    });
+
+    return { tasks: tasksAfterCascade, resources: finalResources };
+  }),
 
   moveActual: (id, edge, newDate) => set(s => ({
     tasks: s.tasks.map(t => {

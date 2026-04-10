@@ -1,4 +1,6 @@
 // ─── GanttRx — Public API ────────────────────────────────────────────────────
+import './index.css';
+
 export { GanttChart } from './components/GanttChart/GanttChart';
 export type { GanttChartProps } from './components/GanttChart/GanttChart';
 

@@ -25,7 +25,7 @@ const C = {
   depLine:         'rgba(168,85,247,0.55)',
   depArrow:        'rgba(168,85,247,0.7)',
   depHighlight:    'rgba(255,255,255,0.75)',
-  actualBar:       '#22c55e',
+  actualBar:       '#6b7280',
   text:            '#e2e2f0',
   criticalBorder:  '#ff3b3b',
   selectedOverlay: 'rgba(255,255,255,0.22)',
@@ -75,7 +75,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
   const resizeTask   = useGanttStore(s => s.resizeTask);
   const moveActual   = useGanttStore(s => s.moveActual);
   const addDependency = useGanttStore(s => s.addDependency);
-  const { scrollLeft, setScrollLeft, scrollTop, setScrollTop } = useViewStore();
+  const { scrollLeft, setScrollLeft, scrollTop, setScrollTop, viewStart, viewEnd, extendLeft, extendRight } = useViewStore();
   const { selectedIds, clearSelection, selectOnly, openPanel } = useSelectionStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -87,7 +87,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
 
   const colW      = settings.columnWidth * settings.zoomFactor;
   const rowH      = settings.rowHeight;
-  const totalDays = differenceInCalendarDays(VIEW_END, VIEW_START) + 1;
+  const totalDays = differenceInCalendarDays(viewEnd, viewStart) + 1;
   const today     = new Date();
   const scale     = getScale(colW);
 
@@ -128,9 +128,26 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
     const earliest = tasks.reduce((min, t) =>
       t.plannedStart < min ? t.plannedStart : min, tasks[0].plannedStart);
     const target = subMonths(earliest, 1);
-    const px = Math.max(0, (target.getTime() - VIEW_START.getTime()) / 86400000 * colW);
+    const px = Math.max(0, (target.getTime() - viewStart.getTime()) / 86400000 * colW);
     setScrollLeft(px);
-  }, [tasks, colW, setScrollLeft]);
+  }, [tasks, colW, setScrollLeft, viewStart]);
+
+  // ─── Auto-extend virtual canvas when approaching edges ────────────────────
+  const EXTEND_DAYS   = 180;
+  const BUFFER_DAYS   = 60;
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const bufferPx = BUFFER_DAYS * colW;
+    if (scrollLeft < bufferPx) {
+      extendLeft(EXTEND_DAYS, colW);
+    }
+    const totalPx = totalDays * colW;
+    const containerWidth = el.clientWidth;
+    if (scrollLeft + containerWidth > totalPx - bufferPx) {
+      extendRight(EXTEND_DAYS);
+    }
+  }, [scrollLeft, colW, totalDays, extendLeft, extendRight]);
 
   // ─── Ctrl key listeners ────────────────────────────────────────────────────
   useEffect(() => {
@@ -150,11 +167,40 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
     return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up); };
   }, []);
 
+  // ─── Scroll-to-today listener (dispatched by Toolbar "Hoje" button) ────────
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = () => {
+      const todayPx = dateToPixel(today, viewStart, colW);
+      const containerWidth = el.clientWidth;
+      setScrollLeft(Math.max(0, todayPx - containerWidth / 2));
+    };
+    el.addEventListener('scroll-today', handler);
+    return () => el.removeEventListener('scroll-today', handler);
+  }, [colW, setScrollLeft, today, viewStart]);
+
+  // ─── Fit-tasks listener (dispatched by Toolbar "Ajustar" button) ──────────
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: Event) => {
+      const { minMs, newColW, padDays } = (e as CustomEvent).detail as {
+        minMs: number; newZoom: number; newColW: number; padDays: number;
+      };
+      const minDate = new Date(minMs);
+      const startPx = dateToPixel(minDate, viewStart, newColW);
+      setScrollLeft(Math.max(0, startPx - padDays * newColW));
+    };
+    el.addEventListener('fit-tasks', handler);
+    return () => el.removeEventListener('fit-tasks', handler);
+  }, [viewStart, setScrollLeft]);
+
   // ─── Layout helper ─────────────────────────────────────────────────────────
   const getLayout = useCallback((h: number): Map<string, TaskLayout> => {
     const si = Math.floor(scrollTop / rowH);
     const ei = Math.ceil((scrollTop + h) / rowH);
-    return computeLayout(tasks, settings, VIEW_START, si, ei);
+    return computeLayout(tasks, settings, viewStart, si, ei);
   }, [tasks, settings, scrollTop, rowH]);
 
   // ─── Connected task IDs — memoized, not recomputed per draw frame ─────────
@@ -176,7 +222,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
     // Weekend backgrounds (fill-only, no stroke)
     for (let i = first; i <= last; i++) {
       const x = i * colW - scrollLeft;
-      const dd = new Date(VIEW_START); dd.setDate(VIEW_START.getDate() + i);
+      const dd = new Date(viewStart); dd.setDate(viewStart.getDate() + i);
       if (isWeekend(dd)) { ctx.fillStyle = C.weekend; ctx.fillRect(x, 0, colW, h); }
     }
     // Batch vertical lines into a single path
@@ -197,7 +243,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
       ctx.moveTo(0, y); ctx.lineTo(w, y);
     }
     ctx.stroke();
-  }, [scrollLeft, scrollTop, colW, rowH, settings.showGrid]);
+  }, [scrollLeft, scrollTop, colW, rowH, settings.showGrid, viewStart]);
 
   // ─── Draw bars ─────────────────────────────────────────────────────────────
   const drawBars = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number, layout: Map<string, TaskLayout>) => {
@@ -210,10 +256,23 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
     for (const [, lyt] of layout) {
       const task = taskById.get(lyt.taskId);
       if (!task) continue;
-      const bx = lyt.x - scrollLeft;
       const by = lyt.y - scrollTop;
-      const bw = lyt.width;
       if (by + rowH < 0 || by > h) continue;
+
+      // Pending visual offset for large-dataset drag — use local vars, NEVER mutate lyt
+      // so that drawDeps (which uses the same layout map) sees the original positions.
+      const pv = pendingVisualRef.current;
+      let bx = lyt.x - scrollLeft;
+      let bw = lyt.width;
+      let isGhost = false;
+      if (pv && pv.taskId === task.id) {
+        isGhost = true;
+        const pxD = pv.dayDelta * colW;
+        if (pv.zone === 'move')              { bx += pxD; }
+        else if (pv.zone === 'resize-start') { bx += pxD; bw -= pxD; }
+        else if (pv.zone === 'resize-end')   { bw += pxD; }
+      }
+
       if (bx + bw < -10 || bx > w + 10) continue;
 
       const isSelected  = selectedIds.has(task.id);
@@ -221,14 +280,8 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
       const isCritical  = !!(task.isCritical && settings.showCriticalPath);
       const barColor    = isCritical ? C.barCritical : (task.color ?? C.barDefault);
 
-      // Apply pending visual offset for large-dataset drag
-      const pv = pendingVisualRef.current;
-      if (pv && pv.taskId === task.id) {
-        const pxD = pv.dayDelta * colW;
-        if (pv.zone === 'move')         { lyt.x += pxD; }
-        else if (pv.zone === 'resize-start') { lyt.x += pxD; lyt.width -= pxD; }
-        else if (pv.zone === 'resize-end')   { lyt.width += pxD; }
-      }
+      ctx.save();
+      if (isGhost) ctx.globalAlpha = 0.45;
 
       // ── Milestone ──
       if (task.type === 'milestone') {
@@ -253,6 +306,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
         ctx.fillStyle = C.text;
         ctx.font = `bold 10px Inter,system-ui`;
         ctx.fillText(task.name, cx + sz + 4, cy + 4);
+        ctx.restore();
         continue;
       }
 
@@ -260,11 +314,11 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
       if (task.type === 'group') {
         const gh = 7; const gy = by + (rowH - gh) / 2;
         ctx.fillStyle = task.color ?? C.barGroup;
-        ctx.globalAlpha = isSelected ? 1 : 0.75;
+        ctx.globalAlpha = isGhost ? 0.45 : isSelected ? 1 : 0.75;
         ctx.fillRect(bx, gy, bw, gh);
         ctx.fillRect(bx, gy - 3, 5, gh + 6);
         ctx.fillRect(bx + bw - 5, gy - 3, 5, gh + 6);
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = isGhost ? 0.45 : 1;
         if (isSelected) {
           ctx.strokeStyle = C.selectedStroke; ctx.lineWidth = 2;
           ctx.strokeRect(bx - 1, gy - 4, bw + 2, gh + 8);
@@ -274,6 +328,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
           ctx.fillStyle = C.text; ctx.font = `bold 10px Inter,system-ui`;
           ctx.fillText(task.name, bx + 7, by + rowH / 2 + 4); ctx.restore();
         }
+        ctx.restore();
         continue;
       }
 
@@ -318,70 +373,201 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
       // ── Actual bar ──
       if (settings.showActualBars && task.actualStart) {
         const aS = task.actualStart, aE = task.actualEnd ?? aS;
-        const ax = dateToPixel(aS, VIEW_START, colW) - scrollLeft;
-        const aw = Math.max(dateToPixel(aE, VIEW_START, colW) + colW - scrollLeft - ax, colW);
+        const ax = dateToPixel(aS, viewStart, colW) - scrollLeft;
+        const aw = Math.max(dateToPixel(aE, viewStart, colW) + colW - scrollLeft - ax, colW);
         const aY = by + actualY;
-        ctx.fillStyle = C.actualBar; ctx.globalAlpha = 0.85;
+        ctx.fillStyle = C.actualBar; ctx.globalAlpha = isGhost ? 0.3 : 0.85;
         ctx.beginPath(); ctx.roundRect(ax, aY, aw, ACTUAL_BAR_H, 2); ctx.fill();
-        ctx.globalAlpha = 0.7; ctx.fillStyle = '#fff';
+        ctx.globalAlpha = isGhost ? 0.3 : 0.7; ctx.fillStyle = '#fff';
         ctx.fillRect(ax, aY, 4, ACTUAL_BAR_H);
         ctx.fillRect(ax + aw - 4, aY, 4, ACTUAL_BAR_H);
-        ctx.globalAlpha = 1;
       }
+      ctx.restore();
     }
-  }, [taskById, scrollLeft, scrollTop, colW, rowH, selectedIds, connectedIds, settings.showCriticalPath, settings.showActualBars]);
+  }, [taskById, scrollLeft, scrollTop, colW, rowH, selectedIds, connectedIds, settings.showCriticalPath, settings.showActualBars, viewStart]);
 
   // ─── Draw dependencies ─────────────────────────────────────────────────────
   const drawDeps = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number, layout: Map<string, TaskLayout>) => {
     ctx.clearRect(0, 0, w, h);
     if (!settings.showDependencies) return;
 
+    const BEND = 10; // horizontal clearance before/after bending
+    const ARR  = 5;  // arrow half-size
+
+    // ── Pre-build row → bars index for obstacle avoidance ─────────────────
+    // Only visible rows are in layout (~30 max), so this is cheap.
+    const rowBars = new Map<number, { id: string; left: number; right: number }[]>();
+    for (const [, lyt2] of layout) {
+      const rIdx = Math.round(lyt2.y / rowH);
+      if (!rowBars.has(rIdx)) rowBars.set(rIdx, []);
+      rowBars.get(rIdx)!.push({
+        id: lyt2.taskId,
+        left:  lyt2.x - scrollLeft,
+        right: lyt2.x + lyt2.width - scrollLeft,
+      });
+    }
+
+    // Find the rightmost clear X for a vertical segment at `x` crossing rows [r0..r1],
+    // skipping bars belonging to fromId or toId.
+    const clearRightX = (
+      startX: number,
+      r0: number, r1: number,
+      fromId: string, toId: string,
+    ): number => {
+      let x = startX;
+      let changed = true;
+      let iters = 0;
+      while (changed && iters++ < 8) {
+        changed = false;
+        for (let r = Math.min(r0, r1); r <= Math.max(r0, r1); r++) {
+          const bars = rowBars.get(r);
+          if (!bars) continue;
+          for (const b of bars) {
+            if (b.id === fromId || b.id === toId) continue;
+            if (x > b.left - 1 && x < b.right + 1) {
+              x = b.right + BEND;
+              changed = true;
+            }
+          }
+        }
+      }
+      return x;
+    };
+
+    // Symmetric version for leftward routing
+    const clearLeftX = (
+      startX: number,
+      r0: number, r1: number,
+      fromId: string, toId: string,
+    ): number => {
+      let x = startX;
+      let changed = true;
+      let iters = 0;
+      while (changed && iters++ < 8) {
+        changed = false;
+        for (let r = Math.min(r0, r1); r <= Math.max(r0, r1); r++) {
+          const bars = rowBars.get(r);
+          if (!bars) continue;
+          for (const b of bars) {
+            if (b.id === fromId || b.id === toId) continue;
+            if (x > b.left - 1 && x < b.right + 1) {
+              x = b.left - BEND;
+              changed = true;
+            }
+          }
+        }
+      }
+      return x;
+    };
+
     for (const dep of dependencies) {
-      // Skip if neither endpoint is in the visible row range
       const from = layout.get(dep.fromId);
       const to   = layout.get(dep.toId);
-      if (!from && !to) continue;
       if (!from || !to) continue;
 
-      const fy = from.y - scrollTop + from.height / 2;
-      const ty = to.y   - scrollTop + to.height / 2;
+      const fy  = from.y - scrollTop + from.height / 2;
+      const ty2 = to.y   - scrollTop + to.height  / 2;
       const isHighlighted = selectedIds.has(dep.fromId) || selectedIds.has(dep.toId);
 
-      let fx: number, tx: number;
+      const fromRight = from.x + from.width - scrollLeft;
+      const fromLeft  = from.x - scrollLeft;
+      const toRight   = to.x + to.width - scrollLeft;
+      const toLeft    = to.x - scrollLeft;
+
+      const fromRow = Math.round(from.y / rowH);
+      const toRow   = Math.round(to.y   / rowH);
+
+      let fx: number, txPos: number, arrowRight: boolean;
       switch (dep.type) {
-        case 'FS': fx = from.x + from.width - scrollLeft; tx = to.x - scrollLeft; break;
-        case 'SS': fx = from.x - scrollLeft; tx = to.x - scrollLeft - 8; break;
-        case 'FF': fx = from.x + from.width - scrollLeft; tx = to.x + to.width - scrollLeft; break;
-        case 'SF': fx = from.x - scrollLeft; tx = to.x + to.width - scrollLeft; break;
-        default:   fx = from.x + from.width - scrollLeft; tx = to.x - scrollLeft;
+        case 'FS': fx = fromRight; txPos = toLeft;  arrowRight = true;  break;
+        case 'SS': fx = fromLeft;  txPos = toLeft;  arrowRight = true;  break;
+        case 'FF': fx = fromRight; txPos = toRight; arrowRight = false; break;
+        case 'SF': fx = fromLeft;  txPos = toRight; arrowRight = false; break;
+        default:   fx = fromRight; txPos = toLeft;  arrowRight = true;  break;
       }
 
       ctx.strokeStyle = isHighlighted ? C.depHighlight : C.depLine;
       ctx.lineWidth   = isHighlighted ? 2 : 1.5;
-      ctx.beginPath(); ctx.moveTo(fx, fy);
-      if (dep.type === 'FS' || dep.type === 'SF') {
-        ctx.lineTo(fx + 8, fy); ctx.lineTo(fx + 8, ty); ctx.lineTo(tx, ty);
+      ctx.setLineDash([]);
+
+      if (dep.type === 'FS' || dep.type === 'FF') {
+        // ── Rightward routing ────────────────────────────────────────────────
+        // Simple case: to task is to the right of elbow → 3-segment L-shape
+        let elbowX = fx + BEND;
+        // Push elbowX right past any bar blocking the vertical segment
+        elbowX = clearRightX(elbowX, fromRow, toRow, dep.fromId, dep.toId);
+
+        if (arrowRight && txPos < elbowX) {
+          // "to" task is behind the elbow (backtrack case):
+          // Go right to elbowX, go PAST to-task's right edge, come from right → left
+          const clearX = clearRightX(
+            Math.max(elbowX, toRight + BEND),
+            fromRow, toRow, dep.fromId, dep.toId,
+          );
+          ctx.beginPath();
+          ctx.moveTo(fx, fy);
+          ctx.lineTo(clearX, fy);
+          ctx.lineTo(clearX, ty2);
+          ctx.lineTo(txPos, ty2);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(fx, fy);
+          ctx.lineTo(elbowX, fy);
+          ctx.lineTo(elbowX, ty2);
+          ctx.lineTo(txPos, ty2);
+          ctx.stroke();
+        }
+
       } else {
-        const mx = (fx + tx) / 2;
-        ctx.lineTo(mx, fy); ctx.lineTo(mx, ty); ctx.lineTo(tx, ty);
+        // ── Leftward routing (SS / SF) ────────────────────────────────────────
+        let elbowX = fx - BEND;
+        elbowX = clearLeftX(elbowX, fromRow, toRow, dep.fromId, dep.toId);
+
+        if (!arrowRight && txPos > elbowX) {
+          // Backtrack
+          const clearX = clearLeftX(
+            Math.min(elbowX, toLeft - BEND),
+            fromRow, toRow, dep.fromId, dep.toId,
+          );
+          ctx.beginPath();
+          ctx.moveTo(fx, fy);
+          ctx.lineTo(clearX, fy);
+          ctx.lineTo(clearX, ty2);
+          ctx.lineTo(txPos, ty2);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(fx, fy);
+          ctx.lineTo(elbowX, fy);
+          ctx.lineTo(elbowX, ty2);
+          ctx.lineTo(txPos, ty2);
+          ctx.stroke();
+        }
       }
-      ctx.stroke();
+
+      // ── Arrow head at txPos ────────────────────────────────────────────────
       ctx.fillStyle = isHighlighted ? C.depHighlight : C.depArrow;
       ctx.beginPath();
-      if (dep.type === 'FF' || dep.type === 'SF') {
-        ctx.moveTo(tx + 6, ty - 3); ctx.lineTo(tx + 6, ty + 3); ctx.lineTo(tx, ty);
+      if (arrowRight) {
+        ctx.moveTo(txPos,       ty2);
+        ctx.lineTo(txPos - ARR, ty2 - ARR);
+        ctx.lineTo(txPos - ARR, ty2 + ARR);
       } else {
-        ctx.moveTo(tx - 6, ty - 3); ctx.lineTo(tx - 6, ty + 3); ctx.lineTo(tx, ty);
+        ctx.moveTo(txPos,       ty2);
+        ctx.lineTo(txPos + ARR, ty2 - ARR);
+        ctx.lineTo(txPos + ARR, ty2 + ARR);
       }
-      ctx.closePath(); ctx.fill();
+      ctx.closePath();
+      ctx.fill();
     }
-  }, [dependencies, scrollLeft, scrollTop, settings.showDependencies, selectedIds]);
+  }, [dependencies, scrollLeft, scrollTop, rowH, settings.showDependencies, selectedIds]);
 
   // ─── Draw overlay (today + markers) ────────────────────────────────────────
   const drawOverlay = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.clearRect(0, 0, w, h);
     for (const mk of markers) {
-      const x = Math.round(dateToPixel(mk.date, VIEW_START, colW) - scrollLeft) + 0.5;
+      const x = Math.round(dateToPixel(mk.date, viewStart, colW) - scrollLeft) + 0.5;
       if (x < -2 || x > w + 2) continue;
       ctx.strokeStyle = mk.color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]);
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
@@ -390,14 +576,14 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 14, 0); ctx.lineTo(x + 14, 10); ctx.lineTo(x + 8, 14); ctx.lineTo(x, 14); ctx.closePath(); ctx.fill();
       ctx.fillStyle = '#000'; ctx.font = `bold 8px Inter,system-ui`; ctx.fillText(mk.label.slice(0, 4), x + 2, 10);
     }
-    const todayX = Math.round(dateToPixel(today, VIEW_START, colW) - scrollLeft) + 0.5;
+    const todayX = Math.round(dateToPixel(today, viewStart, colW) - scrollLeft) + 0.5;
     if (todayX >= 0 && todayX <= w) {
       ctx.strokeStyle = C.todayLine; ctx.lineWidth = 2; ctx.setLineDash([5, 3]);
       ctx.beginPath(); ctx.moveTo(todayX, 0); ctx.lineTo(todayX, h); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = C.todayLine;
       ctx.beginPath(); ctx.moveTo(todayX - 5, 0); ctx.lineTo(todayX + 5, 0); ctx.lineTo(todayX, 7); ctx.closePath(); ctx.fill();
     }
-  }, [scrollLeft, colW, markers, today]);
+  }, [scrollLeft, colW, markers, today, viewStart]);
 
   // ─── Draw connect-mode overlay (Ctrl + dep creation) ──────────────────────
   const drawConnect = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number, layout: Map<string, TaskLayout>) => {
@@ -531,7 +717,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
       // Actual bar zone
       if (task.actualStart && localY >= actualY && localY <= actualY + ACTUAL_BAR_H + 2) {
         const aS = task.actualStart, aE = task.actualEnd ?? aS;
-        const ax0 = dateToPixel(aS, VIEW_START, colW), ax1 = dateToPixel(aE, VIEW_START, colW) + colW;
+        const ax0 = dateToPixel(aS, viewStart, colW), ax1 = dateToPixel(aE, viewStart, colW) + colW;
         if (ax >= ax0 - 4 && ax <= ax1 + 4) {
           if (ax <= ax0 + HANDLE) return { taskId: task.id, zone: 'actual-start' };
           if (ax >= ax1 - HANDLE) return { taskId: task.id, zone: 'actual-end' };
@@ -544,7 +730,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
       return { taskId: task.id, zone: 'move' };
     }
     return null;
-  }, [tasks, getLayout, scrollLeft, scrollTop, rowH, colW]);
+  }, [tasks, getLayout, scrollLeft, scrollTop, rowH, colW, viewStart]);
 
   // ─── Pointer handlers ──────────────────────────────────────────────────────
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -726,61 +912,61 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
 
   if (scale === 'years') {
     // Top: empty / Bottom: Years only
-    let yr = startOfYear(VIEW_START);
-    while (yr <= VIEW_END) {
+    let yr = startOfYear(viewStart);
+    while (yr <= viewEnd) {
       const next = addYears(yr, 1);
-      const x = dateToPixel(yr, VIEW_START, colW) - scrollLeft;
-      const w = dateToPixel(next, VIEW_START, colW) - scrollLeft - x;
+      const x = dateToPixel(yr, viewStart, colW) - scrollLeft;
+      const w = dateToPixel(next, viewStart, colW) - scrollLeft - x;
       botItems.push({ label: String(yr.getFullYear()), x: Math.max(x, 0), w: w + Math.min(x, 0) });
       yr = next;
     }
   } else if (scale === 'year-quarter') {
     // Top: Years
-    let yr = startOfYear(VIEW_START);
-    while (yr <= VIEW_END) {
+    let yr = startOfYear(viewStart);
+    while (yr <= viewEnd) {
       const next = addYears(yr, 1);
-      const x = dateToPixel(yr, VIEW_START, colW) - scrollLeft;
-      const w = dateToPixel(next, VIEW_START, colW) - scrollLeft - x;
+      const x = dateToPixel(yr, viewStart, colW) - scrollLeft;
+      const w = dateToPixel(next, viewStart, colW) - scrollLeft - x;
       topItems.push({ label: String(yr.getFullYear()), x: Math.max(x, 0), w: w + Math.min(x, 0) });
       yr = next;
     }
     // Bottom: Quarters
-    let qr = startOfQuarter(VIEW_START);
-    while (qr <= VIEW_END) {
+    let qr = startOfQuarter(viewStart);
+    while (qr <= viewEnd) {
       const next = addQuarters(qr, 1);
-      const x = dateToPixel(qr, VIEW_START, colW) - scrollLeft;
-      const w = dateToPixel(next, VIEW_START, colW) - scrollLeft - x;
+      const x = dateToPixel(qr, viewStart, colW) - scrollLeft;
+      const w = dateToPixel(next, viewStart, colW) - scrollLeft - x;
       const q = Math.floor(qr.getMonth() / 3) + 1;
       botItems.push({ label: `Q${q}`, x: Math.max(x, 0), w: w + Math.min(x, 0) });
       qr = next;
     }
   } else if (scale === 'quarter-month') {
     // Top: Quarters
-    let qr = startOfQuarter(VIEW_START);
-    while (qr <= VIEW_END) {
+    let qr = startOfQuarter(viewStart);
+    while (qr <= viewEnd) {
       const next = addQuarters(qr, 1);
-      const x = dateToPixel(qr, VIEW_START, colW) - scrollLeft;
-      const w = dateToPixel(next, VIEW_START, colW) - scrollLeft - x;
+      const x = dateToPixel(qr, viewStart, colW) - scrollLeft;
+      const w = dateToPixel(next, viewStart, colW) - scrollLeft - x;
       const q = Math.floor(qr.getMonth() / 3) + 1;
       topItems.push({ label: `Q${q} ${qr.getFullYear()}`, x: Math.max(x, 0), w: w + Math.min(x, 0) });
       qr = next;
     }
     // Bottom: Months
-    let mo = startOfMonth(VIEW_START);
-    while (mo <= VIEW_END) {
+    let mo = startOfMonth(viewStart);
+    while (mo <= viewEnd) {
       const next = addMonths(mo, 1);
-      const x = dateToPixel(mo, VIEW_START, colW) - scrollLeft;
-      const w = dateToPixel(next, VIEW_START, colW) - scrollLeft - x;
+      const x = dateToPixel(mo, viewStart, colW) - scrollLeft;
+      const w = dateToPixel(next, viewStart, colW) - scrollLeft - x;
       botItems.push({ label: format(mo, 'MMM'), x: Math.max(x, 0), w: w + Math.min(x, 0) });
       mo = next;
     }
   } else {
     // Top: Months
-    let mo = startOfMonth(VIEW_START);
-    while (mo <= VIEW_END) {
+    let mo = startOfMonth(viewStart);
+    while (mo <= viewEnd) {
       const next = addMonths(mo, 1);
-      const x = dateToPixel(mo, VIEW_START, colW) - scrollLeft;
-      const w = dateToPixel(next, VIEW_START, colW) - scrollLeft - x;
+      const x = dateToPixel(mo, viewStart, colW) - scrollLeft;
+      const w = dateToPixel(next, viewStart, colW) - scrollLeft - x;
       topItems.push({ label: format(mo, 'MM/yyyy'), x: Math.max(x, 0), w: w + Math.min(x, 0) });
       mo = next;
     }
@@ -789,7 +975,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
     const visLast  = Math.min(totalDays - 1, Math.ceil((scrollLeft + 2400) / colW));
     const todayStr = format(today, 'yyyy-MM-dd');
     for (let i = visFirst; i <= visLast; i++) {
-      const dd = new Date(VIEW_START); dd.setDate(VIEW_START.getDate() + i);
+      const dd = new Date(viewStart); dd.setDate(viewStart.getDate() + i);
       const x = i * colW - scrollLeft;
       const isTd = format(dd, 'yyyy-MM-dd') === todayStr;
       const wk = isWeekend(dd);
@@ -814,6 +1000,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
   return (
     <div
       ref={containerRef}
+      data-timeline="true"
       style={{ flex: 1, overflow: 'hidden', position: 'relative', background: C.bg, cursor, userSelect: 'none' }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -832,7 +1019,7 @@ export const Timeline: React.FC<TimelineProps> = ({ tasks }) => {
           {scale === 'month-day' ? (
             Array.from({ length: visLast2 - visFirst2 + 1 }, (_, i) => {
               const di = visFirst2 + i;
-              const dd = new Date(VIEW_START); dd.setDate(VIEW_START.getDate() + di);
+              const dd = new Date(viewStart); dd.setDate(viewStart.getDate() + di);
               const x = di * colW - scrollLeft;
               const isTd = format(dd, 'yyyy-MM-dd') === todayStr;
               const wk = isWeekend(dd);

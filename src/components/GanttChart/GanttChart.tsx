@@ -65,22 +65,43 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const isPanelOpen = useSelectionStore(s => s.isPanelOpen);
   const [showRescheduling, setShowRescheduling] = useState(false);
   const [histogramHeight, setHistogramHeight] = useState(settings.histogramHeight);
-  const resizeDragRef = useRef<{ startY: number; startH: number } | null>(null);
+  const [taskListWidth, setTaskListWidth] = useState(settings.taskListWidth);
+  const histResizeDragRef = useRef<{ startY: number; startH: number } | null>(null);
+  const listResizeDragRef = useRef<{ startX: number; startW: number } | null>(null);
 
   const setSettings = useGanttStore(s => s.setSettings);
 
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
-    resizeDragRef.current = { startY: e.clientY, startH: histogramHeight };
+    histResizeDragRef.current = { startY: e.clientY, startH: histogramHeight };
     const onMove = (ev: MouseEvent) => {
-      if (!resizeDragRef.current) return;
-      const delta = resizeDragRef.current.startY - ev.clientY;
-      const newH = Math.max(60, Math.min(500, resizeDragRef.current.startH + delta));
+      if (!histResizeDragRef.current) return;
+      const delta = histResizeDragRef.current.startY - ev.clientY;
+      const newH = Math.max(60, Math.min(500, histResizeDragRef.current.startH + delta));
       setHistogramHeight(newH);
       setSettings({ histogramHeight: newH });
     };
     const onUp = () => {
-      resizeDragRef.current = null;
+      histResizeDragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const onListResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    listResizeDragRef.current = { startX: e.clientX, startW: taskListWidth };
+    const onMove = (ev: MouseEvent) => {
+      if (!listResizeDragRef.current) return;
+      const delta = ev.clientX - listResizeDragRef.current.startX;
+      const newW = Math.max(120, Math.min(600, listResizeDragRef.current.startW + delta));
+      setTaskListWidth(newW);
+      setSettings({ taskListWidth: newW });
+    };
+    const onUp = () => {
+      listResizeDragRef.current = null;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
@@ -295,7 +316,20 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-            <TaskList tasks={flatTasks} width={settings.taskListWidth} />
+            <TaskList tasks={flatTasks} width={taskListWidth} />
+            {/* ── Vertical resize handle ── */}
+            <div
+              onMouseDown={onListResizeStart}
+              style={{
+                width: 4,
+                cursor: 'col-resize',
+                flexShrink: 0,
+                background: 'rgba(255,255,255,0.06)',
+                zIndex: 5,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.5)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+            />
             <Timeline tasks={flatTasks} />
           </div>
           {settings.showHistogram && (
@@ -311,7 +345,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.4)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
               />
-              <Histogram height={histogramHeight} leftOffset={settings.taskListWidth} />
+              <Histogram height={histogramHeight} leftOffset={taskListWidth} />
             </>
           )}
         </div>

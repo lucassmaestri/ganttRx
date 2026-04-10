@@ -27,8 +27,10 @@ export function cascadeMove(
   taskMap.set(movedId, { ...movedTask, plannedStart: start, plannedEnd: addDays(start, dur) });
 
   // BFS forward propagation
+  // visited tracks whether a node is queued; we always update positions but only enqueue once.
+  // We never pull a task earlier than its current scheduled start (deps only PUSH forward).
   const queue = [movedId];
-  const visited = new Set<string>([movedId]);
+  const queued = new Set<string>([movedId]);
 
   while (queue.length) {
     const fromId = queue.shift()!;
@@ -43,15 +45,18 @@ export function cascadeMove(
       const newToStart = computeDepStart(fromTask, toTask, dep.type, dep.offsetDays);
       const newToStartDay = startOfDay(newToStart);
 
-      taskMap.set(toId, {
-        ...toTask,
-        plannedStart: newToStartDay,
-        plannedEnd: addDays(newToStartDay, toDur),
-      });
-
-      if (!visited.has(toId)) {
-        visited.add(toId);
-        queue.push(toId);
+      // Only push forward — never pull a task to an earlier date via cascade
+      if (newToStartDay > toTask.plannedStart) {
+        taskMap.set(toId, {
+          ...toTask,
+          plannedStart: newToStartDay,
+          plannedEnd: addDays(newToStartDay, toDur),
+        });
+        // Re-enqueue even if already queued so updated position propagates downstream
+        if (!queued.has(toId)) {
+          queued.add(toId);
+          queue.push(toId);
+        }
       }
     }
   }

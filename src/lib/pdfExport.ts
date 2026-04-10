@@ -1,7 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { useViewStore } from '../store/viewStore';
 import { useGanttStore } from '../store/ganttStore';
-import { VIEW_START, VIEW_END } from './constants';
 import { isWeekend } from './dateUtils';
 import { differenceInCalendarDays, format, startOfMonth, addMonths, startOfQuarter, addQuarters, startOfYear, addYears } from 'date-fns';
 
@@ -20,6 +19,8 @@ function drawScale(
   w: number,
   scrollLeft: number,
   colW: number,
+  viewStart: Date,
+  viewEnd: Date,
 ): void {
   const scale = getScale(colW);
   const today = new Date();
@@ -35,7 +36,7 @@ function drawScale(
   ctx.beginPath(); ctx.moveTo(0, HEADER_H); ctx.lineTo(w, HEADER_H); ctx.stroke();
 
   const dateToX = (d: Date) =>
-    differenceInCalendarDays(d, VIEW_START) * colW - scrollLeft;
+    differenceInCalendarDays(d, viewStart) * colW - scrollLeft;
 
   const drawLabel = (
     label: string, x: number, endX: number, y: number, h2: number,
@@ -60,55 +61,55 @@ function drawScale(
     const bot: {label:string; x:number; ex:number}[] = [];
 
     if (scale === 'years') {
-      let d = startOfYear(VIEW_START);
-      while (d <= VIEW_END) {
+      let d = startOfYear(viewStart);
+      while (d <= viewEnd) {
         const nx = addYears(d, 1);
         bot.push({ label: String(d.getFullYear()), x: dateToX(d), ex: dateToX(nx) });
         d = nx;
       }
     } else if (scale === 'year-quarter') {
-      let d = startOfYear(VIEW_START);
-      while (d <= VIEW_END) {
+      let d = startOfYear(viewStart);
+      while (d <= viewEnd) {
         const nx = addYears(d, 1);
         top.push({ label: String(d.getFullYear()), x: dateToX(d), ex: dateToX(nx) });
         d = nx;
       }
-      let q = startOfQuarter(VIEW_START);
-      while (q <= VIEW_END) {
+      let q = startOfQuarter(viewStart);
+      while (q <= viewEnd) {
         const nx = addQuarters(q, 1);
         const qi = Math.floor(q.getMonth() / 3) + 1;
         bot.push({ label: `Q${qi}`, x: dateToX(q), ex: dateToX(nx) });
         q = nx;
       }
     } else if (scale === 'quarter-month') {
-      let q = startOfQuarter(VIEW_START);
-      while (q <= VIEW_END) {
+      let q = startOfQuarter(viewStart);
+      while (q <= viewEnd) {
         const nx = addQuarters(q, 1);
         const qi = Math.floor(q.getMonth() / 3) + 1;
         top.push({ label: `Q${qi} ${q.getFullYear()}`, x: dateToX(q), ex: dateToX(nx) });
         q = nx;
       }
-      let m = startOfMonth(VIEW_START);
-      while (m <= VIEW_END) {
+      let m = startOfMonth(viewStart);
+      while (m <= viewEnd) {
         const nx = addMonths(m, 1);
         bot.push({ label: format(m, 'MMM'), x: dateToX(m), ex: dateToX(nx) });
         m = nx;
       }
     } else {
-      let m = startOfMonth(VIEW_START);
-      while (m <= VIEW_END) {
+      let m = startOfMonth(viewStart);
+      while (m <= viewEnd) {
         const nx = addMonths(m, 1);
         top.push({ label: format(m, 'MM/yyyy'), x: dateToX(m), ex: dateToX(nx) });
         m = nx;
       }
       const firstDay = Math.max(0, Math.floor(scrollLeft / colW));
       const lastDay = Math.min(
-        differenceInCalendarDays(VIEW_END, VIEW_START),
+        differenceInCalendarDays(viewEnd, viewStart),
         Math.ceil((scrollLeft + w) / colW),
       );
       for (let i = firstDay; i <= lastDay; i++) {
-        const d = new Date(VIEW_START);
-        d.setDate(VIEW_START.getDate() + i);
+        const d = new Date(viewStart);
+        d.setDate(viewStart.getDate() + i);
         const x = i * colW - scrollLeft;
         const todayStr = format(today, 'yyyy-MM-dd');
         const wk = isWeekend(d);
@@ -129,7 +130,7 @@ function drawScale(
   bot.forEach(r => { if (r.x < w && r.ex > 0) drawLabel(r.label, r.x, r.ex, 27, HEADER_H - 27, false); });
 
   // Today line in header
-  const todayX = Math.round(differenceInCalendarDays(today, VIEW_START) * colW - scrollLeft) + 0.5;
+  const todayX = Math.round(differenceInCalendarDays(today, viewStart) * colW - scrollLeft) + 0.5;
   if (todayX >= 0 && todayX <= w) {
     ctx.strokeStyle = 'rgba(168,85,247,0.8)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(todayX, 0); ctx.lineTo(todayX, HEADER_H); ctx.stroke();
@@ -138,7 +139,7 @@ function drawScale(
 
 export function exportGanttPdf(): void {
   // Access Zustand stores outside React
-  const { scrollLeft } = useViewStore.getState();
+  const { scrollLeft, viewStart, viewEnd } = useViewStore.getState();
   const { settings } = useGanttStore.getState();
   const colW = settings.columnWidth * settings.zoomFactor;
 
@@ -175,7 +176,7 @@ export function exportGanttPdf(): void {
   ctx.scale(DPR, DPR);
 
   // ── Draw scale header ──
-  drawScale(ctx, contentW, scrollLeft, colW);
+  drawScale(ctx, contentW, scrollLeft, colW, viewStart, viewEnd);
 
   // ── Draw gantt background ──
   ctx.fillStyle = '#0f0f18';

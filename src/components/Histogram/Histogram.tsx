@@ -4,7 +4,6 @@ import { useViewStore } from '../../store/viewStore';
 import { allocateToBuckets, aggregateBuckets } from '../../lib/betaDistribution';
 import { isWeekend } from '../../lib/dateUtils';
 import { format } from 'date-fns';
-import { VIEW_START } from '../../lib/constants';
 
 const COLORS = ['#3b82f6', '#a855f7', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#f97316', '#8b5cf6'];
 function getColor(idx: number): string { return COLORS[idx % COLORS.length]; }
@@ -20,7 +19,7 @@ export const Histogram: React.FC<HistogramProps> = ({ height, leftOffset }) => {
   const settings  = useGanttStore(s => s.settings);
   const resources = useGanttStore(s => s.resources);
   const tasks     = useGanttStore(s => s.tasks);
-  const { scrollLeft } = useViewStore();
+  const { scrollLeft, viewStart } = useViewStore();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -123,8 +122,8 @@ export const Histogram: React.FC<HistogramProps> = ({ height, leftOffset }) => {
 
     // ─── Bars ────────────────────────────────────────────────────────────────
     for (let i = firstDay; i <= lastDay; i++) {
-      const dayDate = new Date(VIEW_START);
-      dayDate.setDate(VIEW_START.getDate() + i);
+      const dayDate = new Date(viewStart);
+      dayDate.setDate(viewStart.getDate() + i);
       const x = i * colW - scrollLeft;
 
       if (isWeekend(dayDate)) {
@@ -180,7 +179,7 @@ export const Histogram: React.FC<HistogramProps> = ({ height, leftOffset }) => {
       ctx.fillText(`${hours}h`, 4, y - 3);
     });
   }, [buckets, taskDayMap, scrollLeft, colW, chartH, maxTotal, colorMode, hiddenKeys,
-      legendEntries, allResourceNames, settings.showGrid]);
+      legendEntries, allResourceNames, settings.showGrid, viewStart]);
 
   return (
     <div style={{
