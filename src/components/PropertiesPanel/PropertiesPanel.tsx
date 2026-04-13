@@ -78,13 +78,13 @@ export const PropertiesPanel: React.FC<PropsPanelProps> = () => {
   };
 
   const fieldLabel = (label: string) => (
-    <div style={{ color: 'var(--gantt-text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>
+    <div style={{ color: 'var(--gantt-rx-text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>
       {label}
     </div>
   );
 
   const section = (label: string) => (
-    <div style={{ color: 'var(--gantt-text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, padding: '8px 0 4px', borderTop: '1px solid var(--gantt-border)' }}>
+    <div style={{ color: 'var(--gantt-rx-text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, padding: '8px 0 4px', borderTop: '1px solid var(--gantt-rx-border)' }}>
       {label}
     </div>
   );
@@ -94,8 +94,8 @@ export const PropertiesPanel: React.FC<PropsPanelProps> = () => {
       style={{
         width: 380,
         height: '100%',
-        background: 'var(--gantt-surface)',
-        borderLeft: '1px solid var(--gantt-border)',
+        background: 'var(--gantt-rx-surface)',
+        borderLeft: '1px solid var(--gantt-rx-border)',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
@@ -106,7 +106,7 @@ export const PropertiesPanel: React.FC<PropsPanelProps> = () => {
       <div
         style={{
           padding: '12px 14px',
-          borderBottom: '1px solid var(--gantt-border)',
+          borderBottom: '1px solid var(--gantt-rx-border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -114,8 +114,8 @@ export const PropertiesPanel: React.FC<PropsPanelProps> = () => {
         }}
       >
         <div>
-          <div style={{ color: 'var(--gantt-text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>PROPERTIES</div>
-          <div style={{ color: 'var(--gantt-text)', fontSize: 14, fontWeight: 600 }}>{task.name}</div>
+          <div style={{ color: 'var(--gantt-rx-text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>PROPERTIES</div>
+          <div style={{ color: 'var(--gantt-rx-text)', fontSize: 14, fontWeight: 600 }}>{task.name}</div>
         </div>
         <button
           className="gantt-btn"
@@ -232,7 +232,7 @@ export const PropertiesPanel: React.FC<PropsPanelProps> = () => {
             min={0} max={100}
             value={form.progress ?? 0}
             onChange={e => patch('progress', Number(e.target.value))}
-            style={{ width: '100%', accentColor: 'var(--gantt-accent-purple)' }}
+            style={{ width: '100%', accentColor: 'var(--gantt-rx-accent-purple)' }}
           />
         </div>
 
@@ -322,7 +322,7 @@ export const PropertiesPanel: React.FC<PropsPanelProps> = () => {
       </div>
 
       {/* Footer */}
-      <div style={{ padding: '10px 14px', borderTop: '1px solid var(--gantt-border)', display: 'flex', gap: 6 }}>
+      <div style={{ padding: '10px 14px', borderTop: '1px solid var(--gantt-rx-border)', display: 'flex', gap: 6 }}>
         <button className="gantt-btn primary" style={{ flex: 1 }} onClick={closePanel}>
           {t('save')}
         </button>

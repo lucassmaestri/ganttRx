@@ -305,7 +305,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0a0a0f', overflow: 'hidden' }}>
+    <div className="gantt-rx-wrapper">
       <Toolbar
         onAddTask={handleAddTask}
         onAddGroup={handleAddGroup}

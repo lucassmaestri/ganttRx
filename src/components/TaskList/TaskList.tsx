@@ -99,10 +99,10 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
     <div style={{ width, display: 'flex', flexDirection: 'column', height: '100%', flexShrink: 0 }}>
       {/* ─── Header ─────────────────────────────────────────────────────────── */}
       <div style={{
-        height: 'var(--gantt-header-height)',
-        background: 'var(--gantt-surface)',
-        borderRight: '1px solid var(--gantt-border)',
-        borderBottom: '1px solid var(--gantt-border)',
+        height: 'var(--gantt-rx-header-height)',
+        background: 'var(--gantt-rx-surface)',
+        borderRight: '1px solid var(--gantt-rx-border)',
+        borderBottom: '1px solid var(--gantt-rx-border)',
         display: 'flex',
         alignItems: 'flex-end',
         flexShrink: 0,
@@ -110,17 +110,17 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
         <div style={{
           display: 'flex',
           width: '100%',
-          borderTop: '1px solid var(--gantt-border)',
+          borderTop: '1px solid var(--gantt-rx-border)',
           paddingTop: 4,
           paddingBottom: 4,
           alignItems: 'center',
         }}>
-          <div style={{ flex: 1, paddingLeft: 12, color: 'var(--gantt-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
+          <div style={{ flex: 1, paddingLeft: 12, color: 'var(--gantt-rx-text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
             TASK
           </div>
 
           {activeCols.map(col => (
-            <div key={col.key} style={{ width: col.width, textAlign: 'center', color: 'var(--gantt-text-muted)', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
+            <div key={col.key} style={{ width: col.width, textAlign: 'center', color: 'var(--gantt-rx-text-muted)', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
               {col.label}
             </div>
           ))}
@@ -133,7 +133,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
               style={{
                 background: colPickerOpen ? 'rgba(168,85,247,0.15)' : 'none',
                 border: '1px solid ' + (colPickerOpen ? 'rgba(168,85,247,0.5)' : 'transparent'),
-                color: colPickerOpen ? '#a855f7' : 'var(--gantt-text-dim)',
+                color: colPickerOpen ? '#a855f7' : 'var(--gantt-rx-text-dim)',
                 cursor: 'pointer',
                 padding: '0 6px',
                 height: 20,
@@ -175,7 +175,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
                       padding: '4px 2px',
                       cursor: 'pointer',
                       borderRadius: 3,
-                      color: visibleColumns.includes(col.key) ? 'var(--gantt-text)' : 'var(--gantt-text-muted)',
+                      color: visibleColumns.includes(col.key) ? 'var(--gantt-rx-text)' : 'var(--gantt-rx-text-muted)',
                     }}
                   >
                     <input
@@ -201,7 +201,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
           flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
-          borderRight: '1px solid var(--gantt-border)',
+          borderRight: '1px solid var(--gantt-rx-border)',
         }}
       >
         <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
@@ -228,9 +228,9 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
                   background: isSelected
                     ? 'rgba(124,58,237,0.15)'
                     : vrow.index % 2 === 0
-                      ? 'var(--gantt-bg)'
+                      ? 'var(--gantt-rx-bg)'
                       : 'rgba(255,255,255,0.015)',
-                  borderBottom: '1px solid var(--gantt-border)',
+                  borderBottom: '1px solid var(--gantt-rx-border)',
                   cursor: 'pointer',
                   transition: 'background 0.1s',
                   userSelect: 'none',
@@ -245,7 +245,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
                 {isGroup && (
                   <button
                     onClick={e => { e.stopPropagation(); toggleGroup(task.id); }}
-                    style={{ background: 'none', border: 'none', color: 'var(--gantt-text-muted)', cursor: 'pointer', padding: '0 4px', fontSize: 10, flexShrink: 0 }}
+                    style={{ background: 'none', border: 'none', color: 'var(--gantt-rx-text-muted)', cursor: 'pointer', padding: '0 4px', fontSize: 10, flexShrink: 0 }}
                   >
                     {task.collapsed ? '▶' : '▼'}
                   </button>
@@ -254,13 +254,13 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
 
                 {/* Type icon */}
                 {isMilestone && (
-                  <span style={{ color: 'var(--gantt-accent-amber)', fontSize: 10, marginRight: 4, flexShrink: 0 }}>◆</span>
+                  <span style={{ color: 'var(--gantt-rx-accent-amber)', fontSize: 10, marginRight: 4, flexShrink: 0 }}>◆</span>
                 )}
                 {isGroup && (
-                  <span style={{ color: 'var(--gantt-bar-group)', fontSize: 10, marginRight: 4, flexShrink: 0 }}>⬛</span>
+                  <span style={{ color: 'var(--gantt-rx-bar-group)', fontSize: 10, marginRight: 4, flexShrink: 0 }}>⬛</span>
                 )}
                 {!isMilestone && !isGroup && task.isCritical && (
-                  <span style={{ color: 'var(--gantt-bar-critical)', fontSize: 9, marginRight: 3, flexShrink: 0 }}>●</span>
+                  <span style={{ color: 'var(--gantt-rx-bar-critical)', fontSize: 9, marginRight: 3, flexShrink: 0 }}>●</span>
                 )}
                 {!isMilestone && !isGroup && !task.isCritical && (
                   <span style={{ width: 12, flexShrink: 0 }} />
@@ -275,7 +275,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  color: isBehind ? '#fbbf24' : 'var(--gantt-text)',
+                  color: isBehind ? '#fbbf24' : 'var(--gantt-rx-text)',
                   fontWeight: isGroup ? 600 : 400,
                   fontSize: 12,
                 }}>
@@ -302,7 +302,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, width }) => {
                         width: col.width,
                         textAlign: col.key === 'progress' ? 'right' : 'center',
                         paddingRight: col.key === 'progress' ? 6 : 0,
-                        color: 'var(--gantt-text-muted)',
+                        color: 'var(--gantt-rx-text-muted)',
                         fontSize: 11,
                         flexShrink: 0,
                         overflow: 'hidden',

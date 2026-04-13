@@ -87,7 +87,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onAddTask, onAddGroup, onAddMi
 
   return (
     <div style={{
-      height: 'var(--gantt-toolbar-height)',
+      height: 'var(--gantt-rx-toolbar-height)',
       background: '#13131a',
       borderBottom: '1px solid rgba(255,255,255,0.07)',
       display: 'flex',
